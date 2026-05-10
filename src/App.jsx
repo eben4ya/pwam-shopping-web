@@ -144,7 +144,6 @@ export default function App() {
   };
 
   const checkedCount = items.filter((i) => i.checked).length;
-  const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   return (
     <div style={s.page}>
@@ -160,7 +159,6 @@ export default function App() {
         {/* ── Yellow header ── */}
         <div style={s.header}>
           <h1 style={s.appName}>Shopping List.</h1>
-          <p style={s.appSub}>PWAM Demo  ·  {today}</p>
         </div>
 
         {/* ── White card ── */}
