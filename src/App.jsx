@@ -1,113 +1,110 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
-const API = 'http://localhost:3000';
+const API    = 'http://localhost:3000';
+const YELLOW = '#FFD600';
+const BLACK  = '#1A1A1A';
+const GRAY   = '#9CA3AF';
+const LIGHT  = '#F3F4F6';
 
-/* ── Modal ─────────────────────────────────────────── */
+/* ── Delete Modal ───────────────────────────────────── */
 function DeleteModal({ item, onConfirm, onCancel }) {
   return (
-    <div style={s.overlay}>
-      <div style={s.modal}>
-        <div style={s.modalIcon}>🗑️</div>
-        <h2 style={s.modalTitle}>Delete item?</h2>
-        <p style={s.modalBody}>
-          <strong>"{item.name}"</strong> will be permanently removed from the list.
+    <div style={s.overlay} onClick={onCancel}>
+      <div style={s.modalBox} onClick={(e) => e.stopPropagation()}>
+        <p style={s.modalQuestion}>
+          Remove <strong>"{item.name}"</strong> from the list?
         </p>
         <div style={s.modalActions}>
-          <button style={s.cancelBtn} onClick={onCancel}>Cancel</button>
-          <button style={s.confirmBtn} onClick={onConfirm}>Delete</button>
+          <button style={s.modalCancel} onClick={onCancel}>Cancel</button>
+          <button style={s.modalDelete} onClick={onConfirm}>Delete</button>
         </div>
       </div>
     </div>
   );
 }
 
-/* ── Item row ───────────────────────────────────────── */
-function ItemRow({ item, onToggle, onEdit, onDelete }) {
+/* ── Item Row ───────────────────────────────────────── */
+function ItemRow({ item, index, onToggle, onEdit, onDelete }) {
   const [editing, setEditing] = useState(false);
-  const [editVal, setEditVal] = useState(item.name);
+  const [val, setVal]         = useState(item.name);
+
+  const startEdit = () => { setVal(item.name); setEditing(true); };
 
   const saveEdit = async () => {
-    if (!editVal.trim() || editVal.trim() === item.name) {
-      setEditing(false);
-      setEditVal(item.name);
-      return;
-    }
-    await onEdit(item.id, editVal.trim());
+    if (val.trim() && val.trim() !== item.name) await onEdit(item.id, val.trim());
     setEditing(false);
   };
 
-  const cancelEdit = () => {
-    setEditVal(item.name);
-    setEditing(false);
-  };
+  const cancelEdit = () => { setVal(item.name); setEditing(false); };
 
   return (
     <li style={s.item}>
-      <input
-        type="checkbox"
-        style={s.checkbox}
-        checked={Boolean(item.checked)}
-        onChange={() => onToggle(item)}
-      />
+      {/* Index */}
+      <span style={s.idx}>{String(index + 1).padStart(2, '0')}</span>
 
+      {/* Name / inline edit */}
       {editing ? (
         <input
-          style={s.editInput}
-          value={editVal}
+          style={s.inlineInput}
+          value={val}
           autoFocus
-          onChange={(e) => setEditVal(e.target.value)}
+          onChange={(e) => setVal(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') saveEdit();
+            if (e.key === 'Enter')  saveEdit();
             if (e.key === 'Escape') cancelEdit();
           }}
         />
       ) : (
-        <span style={item.checked ? s.nameChecked : s.name}>{item.name}</span>
+        <span style={item.checked ? s.nameDone : s.name}>{item.name}</span>
       )}
 
-      <div style={s.actions}>
-        {editing ? (
-          <>
-            <button style={s.saveBtn} onClick={saveEdit}>Save</button>
-            <button style={s.cancelSmBtn} onClick={cancelEdit}>✕</button>
-          </>
-        ) : (
-          <>
-            <button
-              style={s.editBtn}
-              onClick={() => { setEditVal(item.name); setEditing(true); }}
-              title="Edit"
-            >
-              ✏️
-            </button>
-            <button style={s.deleteBtn} onClick={() => onDelete(item)} title="Delete">
-              🗑️
-            </button>
-          </>
-        )}
-      </div>
+      {/* Edit / save actions */}
+      {editing ? (
+        <div style={s.actionGroup}>
+          <button style={s.saveBtn} onClick={saveEdit}>Save</button>
+          <button style={s.cancelSmBtn} onClick={cancelEdit}>✕</button>
+        </div>
+      ) : (
+        <div style={s.actionGroup}>
+          <button style={s.editPill} onClick={startEdit}>Edit</button>
+          <button
+            style={s.deleteBtn}
+            onClick={() => onDelete(item)}
+            title="Delete"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Circle checkbox */}
+      <button
+        style={item.checked ? s.circleChecked : s.circle}
+        onClick={() => onToggle(item)}
+        title={item.checked ? 'Mark undone' : 'Mark done'}
+      >
+        {item.checked && <span style={s.circleCheckmark}>✓</span>}
+      </button>
     </li>
   );
 }
 
 /* ── App ────────────────────────────────────────────── */
 export default function App() {
-  const [items, setItems] = useState([]);
-  const [input, setInput] = useState('');
-  const [lastSync, setLastSync] = useState(null);
+  const [items, setItems]           = useState([]);
+  const [input, setInput]           = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const fetchItems = useCallback(async () => {
-    const res = await fetch(`${API}/items`);
+    const res  = await fetch(`${API}/items`);
     const data = await res.json();
     setItems(data);
-    setLastSync(new Date().toLocaleTimeString());
   }, []);
 
   useEffect(() => {
     fetchItems();
-    const interval = setInterval(fetchItems, 3000);
-    return () => clearInterval(interval);
+    const id = setInterval(fetchItems, 3000);
+    return () => clearInterval(id);
   }, [fetchItems]);
 
   const addItem = async (e) => {
@@ -140,8 +137,6 @@ export default function App() {
     fetchItems();
   };
 
-  const confirmDelete = (item) => setDeleteTarget(item);
-
   const deleteItem = async () => {
     await fetch(`${API}/items/${deleteTarget.id}`, { method: 'DELETE' });
     setDeleteTarget(null);
@@ -149,6 +144,7 @@ export default function App() {
   };
 
   const checkedCount = items.filter((i) => i.checked).length;
+  const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   return (
     <div style={s.page}>
@@ -160,73 +156,68 @@ export default function App() {
         />
       )}
 
-      <div style={s.card}>
-        {/* Header */}
+      <div style={s.shell}>
+        {/* ── Yellow header ── */}
         <div style={s.header}>
-          <div style={s.headerTop}>
-            <div>
-              <h1 style={s.title}>🛒 Global Shopping List</h1>
-              <p style={s.subtitle}>PWAM Demo — Web Frontend</p>
-            </div>
+          <h1 style={s.appName}>Shopping List.</h1>
+          <p style={s.appSub}>PWAM Demo  ·  {today}</p>
+        </div>
+
+        {/* ── White card ── */}
+        <div style={s.card}>
+          {/* Stats */}
+          <div style={s.statsRow}>
+            <span style={s.statsLabel}>
+              Items <span style={s.statsCount}>({items.length})</span>
+            </span>
             {items.length > 0 && (
-              <div style={s.badge}>
-                {checkedCount}/{items.length}
-              </div>
+              <span style={s.statsDone}>{checkedCount} done</span>
             )}
           </div>
-        </div>
 
-        {/* Add form */}
-        <div style={s.formSection}>
-          <form style={s.form} onSubmit={addItem}>
+          {/* Add form */}
+          <form style={s.addRow} onSubmit={addItem}>
             <input
-              style={s.input}
+              style={s.addInput}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="What do you need? (e.g. Apples)"
+              placeholder="Add a new item…"
             />
-            <button style={s.addBtn} type="submit">+ Add</button>
+            <button style={s.addBtn} type="submit">+</button>
           </form>
-        </div>
 
-        {/* Sync bar */}
-        <div style={s.syncBar}>
-          <span style={s.syncDot} />
-          <span style={s.syncText}>Last sync: {lastSync ?? '—'}</span>
-          <button style={s.refreshBtn} onClick={fetchItems}>↻ Refresh</button>
-        </div>
+          <div style={s.divider} />
 
-        {/* List */}
-        <div style={s.listSection}>
+          {/* List */}
           {items.length === 0 ? (
             <div style={s.empty}>
               <div style={s.emptyIcon}>🧺</div>
-              <p style={s.emptyText}>The list is empty.</p>
-              <p style={s.emptyHint}>Add something above to get started.</p>
+              <p style={s.emptyText}>Your list is empty</p>
+              <p style={s.emptyHint}>Add the first item above</p>
             </div>
           ) : (
             <ul style={s.list}>
-              {items.map((item) => (
+              {items.map((item, index) => (
                 <ItemRow
                   key={item.id}
                   item={item}
+                  index={index}
                   onToggle={toggleItem}
                   onEdit={editItem}
-                  onDelete={confirmDelete}
+                  onDelete={setDeleteTarget}
                 />
               ))}
             </ul>
           )}
-        </div>
 
-        {/* Footer */}
-        {items.length > 0 && (
-          <div style={s.footer}>
-            {checkedCount === items.length
-              ? '✅ All items checked!'
-              : `${items.length - checkedCount} item${items.length - checkedCount !== 1 ? 's' : ''} remaining`}
-          </div>
-        )}
+          {items.length > 0 && (
+            <div style={s.footer}>
+              {checkedCount === items.length
+                ? '✅ All done!'
+                : `${items.length - checkedCount} item${items.length - checkedCount !== 1 ? 's' : ''} remaining`}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -236,225 +227,266 @@ export default function App() {
 const s = {
   page: {
     minHeight: '100vh',
-    background: '#f1f5f9',
+    backgroundColor: YELLOW,
     display: 'flex',
-    alignItems: 'flex-start',
     justifyContent: 'center',
-    padding: '40px 16px',
+    padding: '0 16px 40px',
     fontFamily: "'Segoe UI', system-ui, sans-serif",
   },
-  card: {
+  shell: {
     width: '100%',
-    maxWidth: 520,
-    background: '#fff',
-    borderRadius: 16,
-    boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-    overflow: 'hidden',
-  },
-  header: {
-    background: 'linear-gradient(135deg, #1d4ed8, #2563eb)',
-    padding: '24px 24px 20px',
-    color: '#fff',
-  },
-  headerTop: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  title: {
-    margin: 0,
-    fontSize: 22,
-    fontWeight: 700,
-    letterSpacing: '-0.3px',
-  },
-  subtitle: {
-    margin: '4px 0 0',
-    fontSize: 13,
-    opacity: 0.75,
-  },
-  badge: {
-    background: 'rgba(255,255,255,0.25)',
-    borderRadius: 20,
-    padding: '4px 12px',
-    fontSize: 13,
-    fontWeight: 600,
-    color: '#fff',
-    whiteSpace: 'nowrap',
-  },
-  formSection: {
-    padding: '16px 20px',
-    borderBottom: '1px solid #f1f5f9',
-  },
-  form: {
-    display: 'flex',
-    gap: 8,
-  },
-  input: {
-    flex: 1,
-    padding: '10px 14px',
-    fontSize: 15,
-    border: '1.5px solid #e2e8f0',
-    borderRadius: 8,
-    outline: 'none',
-    transition: 'border-color 0.15s',
-  },
-  addBtn: {
-    padding: '10px 18px',
-    fontSize: 15,
-    background: '#2563eb',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 8,
-    cursor: 'pointer',
-    fontWeight: 600,
-    whiteSpace: 'nowrap',
-  },
-  syncBar: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '8px 20px',
-    fontSize: 12,
-    color: '#94a3b8',
-    borderBottom: '1px solid #f1f5f9',
-    background: '#fafafa',
-  },
-  syncDot: {
-    width: 7,
-    height: 7,
-    borderRadius: '50%',
-    background: '#22c55e',
-    display: 'inline-block',
-    flexShrink: 0,
-  },
-  syncText: {
-    flex: 1,
-  },
-  refreshBtn: {
-    background: 'none',
-    border: '1px solid #e2e8f0',
-    borderRadius: 5,
-    padding: '2px 8px',
-    cursor: 'pointer',
-    fontSize: 12,
-    color: '#64748b',
-  },
-  listSection: {
-    minHeight: 80,
-  },
-  list: {
-    listStyle: 'none',
-    padding: '12px 16px',
-    margin: 0,
+    maxWidth: 480,
+    margin: '0 auto',
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
   },
+
+  /* Header */
+  header: {
+    padding: '36px 8px 28px',
+  },
+  appName: {
+    margin: 0,
+    fontSize: 38,
+    fontWeight: 900,
+    color: BLACK,
+    letterSpacing: '-0.5px',
+    lineHeight: 1.1,
+  },
+  appSub: {
+    margin: '6px 0 0',
+    fontSize: 13,
+    color: '#5A5A00',
+  },
+
+  /* White card */
+  card: {
+    background: '#fff',
+    borderRadius: 24,
+    padding: '20px 20px 0',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.10)',
+    overflow: 'hidden',
+  },
+
+  /* Stats */
+  statsRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 14,
+  },
+  statsLabel: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: BLACK,
+  },
+  statsCount: {
+    color: GRAY,
+    fontWeight: 400,
+  },
+  statsDone: {
+    fontSize: 13,
+    color: GRAY,
+  },
+
+  /* Add row */
+  addRow: {
+    display: 'flex',
+    gap: 10,
+    marginBottom: 16,
+  },
+  addInput: {
+    flex: 1,
+    height: 46,
+    background: LIGHT,
+    border: 'none',
+    borderRadius: 12,
+    padding: '0 14px',
+    fontSize: 15,
+    color: BLACK,
+    outline: 'none',
+  },
+  addBtn: {
+    width: 46,
+    height: 46,
+    background: YELLOW,
+    border: 'none',
+    borderRadius: 12,
+    fontSize: 28,
+    fontWeight: 700,
+    color: BLACK,
+    cursor: 'pointer',
+    lineHeight: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  divider: {
+    height: 1,
+    background: '#F3F4F6',
+    margin: '0 -20px 4px',
+  },
+
+  /* List */
+  list: {
+    listStyle: 'none',
+    padding: 0,
+    margin: 0,
+  },
+
+  /* Item row */
   item: {
     display: 'flex',
     alignItems: 'center',
     gap: 10,
-    padding: '11px 12px',
-    border: '1px solid #e2e8f0',
-    borderRadius: 10,
-    background: '#fff',
-    transition: 'box-shadow 0.15s',
+    padding: '13px 0',
+    borderBottom: '1px solid #F3F4F6',
   },
-  checkbox: {
-    width: 17,
-    height: 17,
-    cursor: 'pointer',
+  idx: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: GRAY,
+    width: 22,
+    textAlign: 'right',
     flexShrink: 0,
-    accentColor: '#2563eb',
   },
   name: {
     flex: 1,
     fontSize: 15,
-    color: '#1e293b',
+    fontWeight: 600,
+    color: BLACK,
   },
-  nameChecked: {
+  nameDone: {
     flex: 1,
     fontSize: 15,
+    fontWeight: 400,
+    color: GRAY,
     textDecoration: 'line-through',
-    color: '#94a3b8',
   },
-  editInput: {
+  inlineInput: {
     flex: 1,
     fontSize: 15,
-    border: '1.5px solid #2563eb',
-    borderRadius: 6,
+    border: `2px solid ${YELLOW}`,
+    borderRadius: 8,
     padding: '4px 8px',
     outline: 'none',
+    background: '#FFFDE7',
   },
-  actions: {
+
+  /* Action group */
+  actionGroup: {
     display: 'flex',
-    gap: 4,
+    gap: 6,
     flexShrink: 0,
+    alignItems: 'center',
   },
-  editBtn: {
-    background: '#f1f5f9',
-    border: '1px solid #e2e8f0',
-    borderRadius: 6,
+  editPill: {
+    background: '#FFF9C4',
+    border: `1px solid ${YELLOW}`,
+    borderRadius: 20,
+    padding: '3px 10px',
+    fontSize: 12,
+    fontWeight: 700,
+    color: '#7A6800',
     cursor: 'pointer',
-    padding: '4px 7px',
-    fontSize: 13,
-    lineHeight: 1,
-  },
-  deleteBtn: {
-    background: '#fff5f5',
-    border: '1px solid #fecaca',
-    borderRadius: 6,
-    cursor: 'pointer',
-    padding: '4px 7px',
-    fontSize: 13,
-    lineHeight: 1,
+    whiteSpace: 'nowrap',
   },
   saveBtn: {
-    background: '#2563eb',
-    color: '#fff',
+    background: YELLOW,
     border: 'none',
-    borderRadius: 6,
-    cursor: 'pointer',
+    borderRadius: 8,
     padding: '4px 10px',
     fontSize: 13,
-    fontWeight: 600,
+    fontWeight: 700,
+    color: BLACK,
+    cursor: 'pointer',
   },
   cancelSmBtn: {
-    background: '#f1f5f9',
-    border: '1px solid #e2e8f0',
-    borderRadius: 6,
-    cursor: 'pointer',
-    padding: '4px 7px',
+    background: LIGHT,
+    border: '1px solid #E5E7EB',
+    borderRadius: 8,
+    padding: '4px 8px',
     fontSize: 13,
+    cursor: 'pointer',
+    color: GRAY,
   },
+  deleteBtn: {
+    background: 'none',
+    border: 'none',
+    fontSize: 14,
+    color: '#D1D5DB',
+    cursor: 'pointer',
+    padding: '2px 4px',
+    lineHeight: 1,
+  },
+
+  /* Circle checkbox */
+  circle: {
+    width: 28,
+    height: 28,
+    borderRadius: '50%',
+    border: '2px solid #D1D5DB',
+    background: 'transparent',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    padding: 0,
+  },
+  circleChecked: {
+    width: 28,
+    height: 28,
+    borderRadius: '50%',
+    border: `2px solid ${YELLOW}`,
+    background: YELLOW,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    padding: 0,
+  },
+  circleCheckmark: {
+    fontSize: 13,
+    fontWeight: 800,
+    color: BLACK,
+    lineHeight: 1,
+  },
+
+  /* Empty */
   empty: {
     textAlign: 'center',
-    padding: '40px 20px',
+    padding: '44px 0',
   },
   emptyIcon: {
-    fontSize: 40,
-    marginBottom: 8,
+    fontSize: 52,
+    marginBottom: 12,
   },
   emptyText: {
-    margin: 0,
-    fontSize: 16,
-    fontWeight: 600,
-    color: '#64748b',
+    margin: '0 0 4px',
+    fontSize: 17,
+    fontWeight: 700,
+    color: BLACK,
   },
   emptyHint: {
-    margin: '4px 0 0',
+    margin: 0,
     fontSize: 13,
-    color: '#94a3b8',
+    color: GRAY,
   },
+
+  /* Footer */
   footer: {
     textAlign: 'center',
-    padding: '12px 20px',
+    padding: '12px 0',
     fontSize: 13,
-    color: '#64748b',
-    borderTop: '1px solid #f1f5f9',
-    background: '#fafafa',
+    color: GRAY,
+    borderTop: '1px solid #F3F4F6',
+    margin: '0 -20px',
   },
-  /* Modal */
+
+  /* Delete Modal */
   overlay: {
     position: 'fixed',
     inset: 0,
@@ -465,56 +497,45 @@ const s = {
     zIndex: 100,
     padding: 16,
   },
-  modal: {
+  modalBox: {
     background: '#fff',
-    borderRadius: 16,
-    padding: '28px 28px 24px',
-    maxWidth: 360,
+    borderRadius: 20,
+    padding: '28px 24px 20px',
+    maxWidth: 340,
     width: '100%',
-    boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+    boxShadow: '0 24px 64px rgba(0,0,0,0.2)',
     textAlign: 'center',
   },
-  modalIcon: {
-    fontSize: 36,
-    marginBottom: 8,
-  },
-  modalTitle: {
-    margin: '0 0 8px',
-    fontSize: 20,
-    fontWeight: 700,
-    color: '#111827',
-  },
-  modalBody: {
+  modalQuestion: {
     margin: '0 0 24px',
-    fontSize: 15,
-    color: '#4b5563',
+    fontSize: 16,
+    color: '#374151',
     lineHeight: 1.5,
   },
   modalActions: {
     display: 'flex',
     gap: 10,
-    justifyContent: 'center',
   },
-  cancelBtn: {
+  modalCancel: {
     flex: 1,
-    padding: '10px 0',
+    padding: '11px 0',
     fontSize: 15,
-    border: '1.5px solid #e2e8f0',
-    borderRadius: 8,
+    border: '1.5px solid #E5E7EB',
+    borderRadius: 12,
     cursor: 'pointer',
     background: '#fff',
     color: '#374151',
     fontWeight: 500,
   },
-  confirmBtn: {
+  modalDelete: {
     flex: 1,
-    padding: '10px 0',
+    padding: '11px 0',
     fontSize: 15,
     border: 'none',
-    borderRadius: 8,
+    borderRadius: 12,
     cursor: 'pointer',
-    background: '#ef4444',
+    background: '#EF4444',
     color: '#fff',
-    fontWeight: 600,
+    fontWeight: 700,
   },
 };
