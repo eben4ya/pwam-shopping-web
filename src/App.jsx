@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
-const API    = 'http://localhost:3000';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const YELLOW = '#FFD600';
 const BLACK  = '#1A1A1A';
 const GRAY   = '#9CA3AF';
