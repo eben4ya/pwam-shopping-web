@@ -90,7 +90,7 @@ function ItemRow({ item, index, onToggle, onEdit, onDelete }) {
 }
 
 /* ── AI Suggest Box ─────────────────────────────────── */
-function AiSuggestBox({ onAdd, onClose }) {
+function AiSuggestBox({ onAdd }) {
   const [prompt, setPrompt]   = useState('');
   const [loading, setLoading] = useState(false);
   const [items, setItems]     = useState([]);
@@ -148,7 +148,6 @@ function AiSuggestBox({ onAdd, onClose }) {
             </svg>
           ) : '✨'}
         </button>
-        <button style={s.aiDismissBtn} type="button" onClick={onClose} title="Close AI">✕</button>
       </form>
       {error && <div style={s.aiError}>{error}</div>}
       {items.length > 0 && (
@@ -277,14 +276,14 @@ export default function App() {
               style={showAi ? s.aiToggleBtnActive : s.aiToggleBtn}
               type="button"
               onClick={() => setShowAi((v) => !v)}
-              title={showAi ? 'Hide AI' : 'Ask AI'}
+              title={showAi ? 'Close AI' : 'Ask AI'}
             >
-              ✨
+              {showAi ? '✕' : '✨'}
             </button>
           </form>
 
           {/* AI Suggest */}
-          {showAi && <AiSuggestBox onAdd={addItemByName} onClose={() => setShowAi(false)} />}
+          {showAi && <AiSuggestBox onAdd={addItemByName} />}
 
           <div style={s.divider} />
 
@@ -451,21 +450,6 @@ const s = {
     borderRadius: 12,
     fontSize: 20,
     color: BLACK,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-
-  aiDismissBtn: {
-    width: 46,
-    height: 46,
-    background: LIGHT,
-    border: '1px solid #E5E7EB',
-    borderRadius: 12,
-    fontSize: 15,
-    color: GRAY,
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
