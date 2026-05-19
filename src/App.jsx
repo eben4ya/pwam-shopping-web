@@ -137,7 +137,16 @@ function AiSuggestBox({ onAdd }) {
           disabled={loading}
         />
         <button style={s.aiBtn} type="submit" disabled={loading || !prompt.trim()}>
-          {loading ? '…' : '✨'}
+          {loading ? (
+            <svg width="18" height="18" viewBox="0 0 18 18">
+              <circle cx="9" cy="9" r="6.5" fill="none" stroke="rgba(255,214,0,0.3)" strokeWidth="2.5"/>
+              <circle cx="9" cy="9" r="6.5" fill="none" stroke={YELLOW} strokeWidth="2.5"
+                strokeDasharray="10 31" strokeLinecap="round">
+                <animateTransform attributeName="transform" type="rotate"
+                  from="0 9 9" to="360 9 9" dur="0.75s" repeatCount="indefinite"/>
+              </circle>
+            </svg>
+          ) : '✨'}
         </button>
       </form>
       {error && <div style={s.aiError}>{error}</div>}
@@ -169,6 +178,7 @@ export default function App() {
   const [items, setItems]           = useState([]);
   const [input, setInput]           = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [showAi, setShowAi]         = useState(false);
 
   const fetchItems = useCallback(async () => {
     const res  = await fetch(`${API}/items`);
@@ -262,10 +272,18 @@ export default function App() {
               placeholder="Add a new item…"
             />
             <button style={s.addBtn} type="submit">+</button>
+            <button
+              style={showAi ? s.aiToggleBtnActive : s.aiToggleBtn}
+              type="button"
+              onClick={() => setShowAi((v) => !v)}
+              title={showAi ? 'Hide AI' : 'Ask AI'}
+            >
+              ✨
+            </button>
           </form>
 
           {/* AI Suggest */}
-          <AiSuggestBox onAdd={addItemByName} />
+          {showAi && <AiSuggestBox onAdd={addItemByName} />}
 
           <div style={s.divider} />
 
@@ -407,6 +425,36 @@ const s = {
     height: 1,
     background: '#F3F4F6',
     margin: '0 -20px 4px',
+  },
+
+  /* AI toggle icon in addRow */
+  aiToggleBtn: {
+    width: 46,
+    height: 46,
+    background: BLACK,
+    border: 'none',
+    borderRadius: 12,
+    fontSize: 20,
+    color: YELLOW,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  aiToggleBtnActive: {
+    width: 46,
+    height: 46,
+    background: YELLOW,
+    border: '2px solid ' + BLACK,
+    borderRadius: 12,
+    fontSize: 20,
+    color: BLACK,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
 
   /* AI Suggest */
