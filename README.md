@@ -80,6 +80,20 @@ pwam-shopping-web/
 
 ---
 
+## AI Integration
+
+The web app includes an **AI Suggest** button in the header that connects to the backend's `/ai/suggest` endpoint.
+
+**How to use:**
+1. Click the **✨ Ask AI** button in the top-right corner to open the suggestion panel.
+2. Type a natural-language prompt (e.g., *"mau bikin rendang untuk 5 porsi"*).
+3. The AI returns up to 8 suggested shopping items.
+4. Click **+** next to any suggestion to add it directly to your list.
+
+The feature works out of the box once the backend is running with a valid `OPENROUTER_API_KEY`. No extra frontend config is needed.
+
+---
+
 ## Ideas for Improvement
 
 - Split `App.jsx` into smaller components (`ItemRow`, `AddForm`, etc.)
