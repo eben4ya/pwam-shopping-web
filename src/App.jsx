@@ -89,6 +89,81 @@ function ItemRow({ item, index, onToggle, onEdit, onDelete }) {
   );
 }
 
+/* ── AI Suggest Box ─────────────────────────────────── */
+function AiSuggestBox({ onAdd }) {
+  const [prompt, setPrompt]   = useState('');
+  const [loading, setLoading] = useState(false);
+  const [items, setItems]     = useState([]);
+  const [error, setError]     = useState('');
+  const [addedIdx, setAddedIdx] = useState(new Set());
+
+  const suggest = async (e) => {
+    e.preventDefault();
+    if (!prompt.trim() || loading) return;
+    setLoading(true);
+    setError('');
+    setItems([]);
+    setAddedIdx(new Set());
+    try {
+      const res = await fetch(`${API}/ai/suggest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompt.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'AI gagal');
+      setItems(data.items || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addOne = async (name, idx) => {
+    await onAdd(name);
+    setAddedIdx((prev) => new Set(prev).add(idx));
+  };
+
+  return (
+    <div style={s.aiBox}>
+      <form style={s.addRow} onSubmit={suggest}>
+        <input
+          style={s.addInput}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder='Tanya AI: "mau bikin rendang untuk 5 porsi"'
+          maxLength={500}
+          disabled={loading}
+        />
+        <button style={s.aiBtn} type="submit" disabled={loading || !prompt.trim()}>
+          {loading ? '…' : '✨'}
+        </button>
+      </form>
+      {error && <div style={s.aiError}>{error}</div>}
+      {items.length > 0 && (
+        <div style={s.aiResults}>
+          <div style={s.aiResultsHeader}>Hasil dari AI · {items.length} saran</div>
+          <ul style={s.aiList}>
+            {items.map((name, idx) => (
+              <li key={idx} style={s.aiItem}>
+                <span style={s.aiItemName}>{name}</span>
+                <button
+                  style={addedIdx.has(idx) ? s.aiAddedBtn : s.aiAddBtn}
+                  onClick={() => addOne(name, idx)}
+                  disabled={addedIdx.has(idx)}
+                >
+                  {addedIdx.has(idx) ? '✓ Ditambah' : '+ Tambah'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── App ────────────────────────────────────────────── */
 export default function App() {
   const [items, setItems]           = useState([]);
@@ -107,16 +182,21 @@ export default function App() {
     return () => clearInterval(id);
   }, [fetchItems]);
 
-  const addItem = async (e) => {
-    e.preventDefault();
-    if (!input.trim()) return;
+  const addItemByName = async (name) => {
+    if (!name || !name.trim()) return;
     await fetch(`${API}/items`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: input.trim() }),
+      body: JSON.stringify({ name: name.trim() }),
     });
-    setInput('');
     fetchItems();
+  };
+
+  const addItem = async (e) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+    await addItemByName(input);
+    setInput('');
   };
 
   const toggleItem = async (item) => {
@@ -183,6 +263,9 @@ export default function App() {
             />
             <button style={s.addBtn} type="submit">+</button>
           </form>
+
+          {/* AI Suggest */}
+          <AiSuggestBox onAdd={addItemByName} />
 
           <div style={s.divider} />
 
@@ -324,6 +407,86 @@ const s = {
     height: 1,
     background: '#F3F4F6',
     margin: '0 -20px 4px',
+  },
+
+  /* AI Suggest */
+  aiBox: {
+    marginBottom: 16,
+  },
+  aiBtn: {
+    width: 46,
+    height: 46,
+    background: BLACK,
+    border: 'none',
+    borderRadius: 12,
+    fontSize: 20,
+    color: YELLOW,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiError: {
+    background: '#FEE2E2',
+    color: '#991B1B',
+    padding: '8px 12px',
+    borderRadius: 8,
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  aiResults: {
+    background: '#FFFDE7',
+    border: `1px solid ${YELLOW}`,
+    borderRadius: 12,
+    padding: '10px 12px',
+    marginBottom: 4,
+  },
+  aiResultsHeader: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: '#7A6800',
+    letterSpacing: '0.5px',
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  aiList: {
+    listStyle: 'none',
+    padding: 0,
+    margin: 0,
+  },
+  aiItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '6px 0',
+    borderTop: '1px solid #FFF59D',
+  },
+  aiItemName: {
+    flex: 1,
+    fontSize: 14,
+    color: BLACK,
+  },
+  aiAddBtn: {
+    background: YELLOW,
+    border: 'none',
+    borderRadius: 8,
+    padding: '5px 12px',
+    fontSize: 12,
+    fontWeight: 700,
+    color: BLACK,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  aiAddedBtn: {
+    background: '#E5E7EB',
+    border: 'none',
+    borderRadius: 8,
+    padding: '5px 12px',
+    fontSize: 12,
+    fontWeight: 600,
+    color: GRAY,
+    cursor: 'default',
+    whiteSpace: 'nowrap',
   },
 
   /* List */
