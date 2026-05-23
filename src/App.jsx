@@ -1,10 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API              = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
 const YELLOW = '#FFD600';
 const BLACK  = '#1A1A1A';
 const GRAY   = '#9CA3AF';
 const LIGHT  = '#F3F4F6';
+
+/* ── helpers ────────────────────────────────────────── */
+function authHeaders(token) {
+  return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+}
 
 /* ── Delete Modal ───────────────────────────────────── */
 function DeleteModal({ item, onConfirm, onCancel }) {
@@ -28,21 +36,17 @@ function ItemRow({ item, index, onToggle, onEdit, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal]         = useState(item.name);
 
-  const startEdit = () => { setVal(item.name); setEditing(true); };
-
-  const saveEdit = async () => {
+  const startEdit  = () => { setVal(item.name); setEditing(true); };
+  const cancelEdit = () => { setVal(item.name); setEditing(false); };
+  const saveEdit   = async () => {
     if (val.trim() && val.trim() !== item.name) await onEdit(item.id, val.trim());
     setEditing(false);
   };
 
-  const cancelEdit = () => { setVal(item.name); setEditing(false); };
-
   return (
     <li style={s.item}>
-      {/* Index */}
       <span style={s.idx}>{String(index + 1).padStart(2, '0')}</span>
 
-      {/* Name / inline edit */}
       {editing ? (
         <input
           style={s.inlineInput}
@@ -58,7 +62,6 @@ function ItemRow({ item, index, onToggle, onEdit, onDelete }) {
         <span style={item.checked ? s.nameDone : s.name}>{item.name}</span>
       )}
 
-      {/* Edit / save actions */}
       {editing ? (
         <div style={s.actionGroup}>
           <button style={s.saveBtn} onClick={saveEdit}>Save</button>
@@ -67,17 +70,10 @@ function ItemRow({ item, index, onToggle, onEdit, onDelete }) {
       ) : (
         <div style={s.actionGroup}>
           <button style={s.editPill} onClick={startEdit}>Edit</button>
-          <button
-            style={s.deleteBtn}
-            onClick={() => onDelete(item)}
-            title="Delete"
-          >
-            ✕
-          </button>
+          <button style={s.deleteBtn} onClick={() => onDelete(item)} title="Delete">✕</button>
         </div>
       )}
 
-      {/* Circle checkbox */}
       <button
         style={item.checked ? s.circleChecked : s.circle}
         onClick={() => onToggle(item)}
@@ -173,31 +169,96 @@ function AiSuggestBox({ onAdd }) {
   );
 }
 
+/* ── Login Screen ───────────────────────────────────── */
+function LoginScreen({ onLogin }) {
+  return (
+    <div style={s.page}>
+      <div style={s.shell}>
+        <div style={s.header}>
+          <h1 style={s.appName}>Shopping List.</h1>
+        </div>
+        <div style={s.card}>
+          <div style={s.loginWrap}>
+            <p style={s.loginHint}>Sign in to access your personal list</p>
+            <GoogleLogin
+              onSuccess={onLogin}
+              onError={() => console.error('Google login failed')}
+              useOneTap
+              shape="pill"
+              size="large"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── App ────────────────────────────────────────────── */
-export default function App() {
-  const [items, setItems]           = useState([]);
-  const [input, setInput]           = useState('');
+function ShoppingApp() {
+  const [token, setToken]       = useState(() => localStorage.getItem('jwt'));
+  const [user, setUser]         = useState(null);
+  const [items, setItems]       = useState([]);
+  const [input, setInput]       = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [showAi, setShowAi]         = useState(false);
 
+  // Validate stored token on mount
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => {
+        if (!r.ok) throw new Error('invalid');
+        return r.json();
+      })
+      .then(setUser)
+      .catch(() => {
+        localStorage.removeItem('jwt');
+        setToken(null);
+      });
+  }, [token]);
+
+  const handleLogin = async (credentialResponse) => {
+    const res  = await fetch(`${API}/auth/google`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ idToken: credentialResponse.credential }),
+    });
+    const data = await res.json();
+    if (!res.ok) return console.error('Auth error:', data);
+    localStorage.setItem('jwt', data.token);
+    setToken(data.token);
+    setUser(data.user);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('jwt');
+    setToken(null);
+    setUser(null);
+    setItems([]);
+  };
+
   const fetchItems = useCallback(async () => {
-    const res  = await fetch(`${API}/items`);
+    if (!token) return;
+    const res  = await fetch(`${API}/items`, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.status === 401) { handleLogout(); return; }
     const data = await res.json();
     setItems(data);
-  }, []);
+  }, [token]);
 
   useEffect(() => {
+    if (!token) return;
     fetchItems();
     const id = setInterval(fetchItems, 3000);
     return () => clearInterval(id);
-  }, [fetchItems]);
+  }, [fetchItems, token]);
 
   const addItemByName = async (name) => {
     if (!name || !name.trim()) return;
     await fetch(`${API}/items`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim() }),
+      method:  'POST',
+      headers: authHeaders(token),
+      body:    JSON.stringify({ name: name.trim() }),
     });
     fetchItems();
   };
@@ -211,27 +272,32 @@ export default function App() {
 
   const toggleItem = async (item) => {
     await fetch(`${API}/items/${item.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ checked: !item.checked }),
+      method:  'PUT',
+      headers: authHeaders(token),
+      body:    JSON.stringify({ checked: !item.checked }),
     });
     fetchItems();
   };
 
   const editItem = async (id, name) => {
     await fetch(`${API}/items/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      method:  'PUT',
+      headers: authHeaders(token),
+      body:    JSON.stringify({ name }),
     });
     fetchItems();
   };
 
   const deleteItem = async () => {
-    await fetch(`${API}/items/${deleteTarget.id}`, { method: 'DELETE' });
+    await fetch(`${API}/items/${deleteTarget.id}`, {
+      method:  'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
     setDeleteTarget(null);
     fetchItems();
   };
+
+  if (!token || !user) return <LoginScreen onLogin={handleLogin} />;
 
   const checkedCount = items.filter((i) => i.checked).length;
 
@@ -246,14 +312,18 @@ export default function App() {
       )}
 
       <div style={s.shell}>
-        {/* ── Yellow header ── */}
         <div style={s.header}>
           <h1 style={s.appName}>Shopping List.</h1>
+          <div style={s.userRow}>
+            {user.picture && (
+              <img src={user.picture} alt={user.name} style={s.avatar} referrerPolicy="no-referrer" />
+            )}
+            <span style={s.userName}>{user.name}</span>
+            <button style={s.signOutBtn} onClick={handleLogout}>Sign out</button>
+          </div>
         </div>
 
-        {/* ── White card ── */}
         <div style={s.card}>
-          {/* Stats */}
           <div style={s.statsRow}>
             <span style={s.statsLabel}>
               Items <span style={s.statsCount}>({items.length})</span>
@@ -263,7 +333,6 @@ export default function App() {
             )}
           </div>
 
-          {/* Add form */}
           <form style={s.addRow} onSubmit={addItem}>
             <input
               style={s.addInput}
@@ -287,7 +356,6 @@ export default function App() {
 
           <div style={s.divider} />
 
-          {/* List */}
           {items.length === 0 ? (
             <div style={s.empty}>
               <div style={s.emptyIcon}>🧺</div>
@@ -322,6 +390,14 @@ export default function App() {
   );
 }
 
+export default function App() {
+  return (
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <ShoppingApp />
+    </GoogleOAuthProvider>
+  );
+}
+
 /* ── Styles ─────────────────────────────────────────── */
 const s = {
   page: {
@@ -340,7 +416,6 @@ const s = {
     flexDirection: 'column',
   },
 
-  /* Header */
   header: {
     padding: '36px 8px 28px',
   },
@@ -352,13 +427,49 @@ const s = {
     letterSpacing: '-0.5px',
     lineHeight: 1.1,
   },
-  appSub: {
-    margin: '6px 0 0',
-    fontSize: 13,
-    color: '#5A5A00',
+
+  userRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+  },
+  avatar: {
+    width: 28,
+    height: 28,
+    borderRadius: '50%',
+  },
+  userName: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: 600,
+    color: BLACK,
+  },
+  signOutBtn: {
+    background: 'rgba(0,0,0,0.12)',
+    border: 'none',
+    borderRadius: 20,
+    padding: '4px 12px',
+    fontSize: 12,
+    fontWeight: 700,
+    color: BLACK,
+    cursor: 'pointer',
   },
 
-  /* White card */
+  loginWrap: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 20,
+    padding: '40px 0',
+  },
+  loginHint: {
+    margin: 0,
+    fontSize: 15,
+    color: GRAY,
+    textAlign: 'center',
+  },
+
   card: {
     background: '#fff',
     borderRadius: 24,
@@ -367,7 +478,6 @@ const s = {
     overflow: 'hidden',
   },
 
-  /* Stats */
   statsRow: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -388,7 +498,6 @@ const s = {
     color: GRAY,
   },
 
-  /* Add row */
   addRow: {
     display: 'flex',
     gap: 10,
@@ -544,7 +653,6 @@ const s = {
     margin: 0,
   },
 
-  /* Item row */
   item: {
     display: 'flex',
     alignItems: 'center',
@@ -583,7 +691,6 @@ const s = {
     background: '#FFFDE7',
   },
 
-  /* Action group */
   actionGroup: {
     display: 'flex',
     gap: 6,
@@ -630,7 +737,6 @@ const s = {
     lineHeight: 1,
   },
 
-  /* Circle checkbox */
   circle: {
     width: 28,
     height: 28,
@@ -664,7 +770,6 @@ const s = {
     lineHeight: 1,
   },
 
-  /* Empty */
   empty: {
     textAlign: 'center',
     padding: '44px 0',
@@ -685,7 +790,6 @@ const s = {
     color: GRAY,
   },
 
-  /* Footer */
   footer: {
     textAlign: 'center',
     padding: '12px 0',
@@ -695,7 +799,6 @@ const s = {
     margin: '0 -20px',
   },
 
-  /* Delete Modal */
   overlay: {
     position: 'fixed',
     inset: 0,
